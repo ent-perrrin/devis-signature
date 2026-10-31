@@ -241,6 +241,12 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
 .num{display:inline-block;font-weight:800;color:#fff;background:var(--orange);border-radius:5px;padding:1px 7px;margin-right:8px;font-size:12.5px}
 .fiche-num{text-align:right;font-weight:800;color:var(--navy);font-size:15px;margin-top:10px}
 .fiche-num span{color:#fff;background:var(--orange);border-radius:6px;padding:3px 10px;margin-left:6px}
+.askbox{position:fixed;inset:0;z-index:60;background:rgba(10,31,82,.55);display:none;align-items:center;justify-content:center;padding:20px}
+.askbox.open{display:flex}
+.askbox .in{background:#fff;border-radius:14px;max-width:400px;width:100%;padding:22px 20px 18px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.askbox p{margin:0 0 18px;font-size:16px;line-height:1.45;font-weight:700;color:var(--ink)}
+.askbox .row{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.askbox .btn{padding:11px 18px;font-size:15px}
 .empty{padding:30px 20px;text-align:center;color:var(--muted);line-height:1.5}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
 .toast.show{opacity:1}
@@ -504,6 +510,9 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   </aside>
 </div>
 
+<div class="askbox" id="askBox" role="alertdialog" aria-modal="true" aria-labelledby="askText">
+  <div class="in"><p id="askText"></p><div class="row"><button class="btn btn-light" type="button" id="askNo">Annuler</button><button class="btn btn-danger" type="button" id="askYes">Confirmer</button></div></div>
+</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -548,6 +557,18 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   const hasContent=()=>!!(state.info.nom.trim()||state.info.prenom.trim()||state.info.mail.trim());
   const clientName=()=>[state.info.prenom.trim(),state.info.nom.trim()].filter(Boolean).join(' ');
 
+  function ask(text,yes,danger){
+    return new Promise(res=>{
+      const box=$('askBox'),y=$('askYes'),n=$('askNo');
+      $('askText').textContent=text;y.textContent=yes||'Confirmer';
+      y.className='btn '+(danger===false?'btn-primary':'btn-danger');
+      const done=v=>{box.classList.remove('open');y.onclick=n.onclick=box.onclick=null;document.removeEventListener('keydown',key,true);res(v);};
+      const key=e=>{if(e.key==='Escape'){e.stopPropagation();done(false);}};
+      y.onclick=()=>done(true);n.onclick=()=>done(false);box.onclick=e=>{if(e.target===box)done(false);};
+      document.addEventListener('keydown',key,true);
+      box.classList.add('open');y.focus();
+    });
+  }
   function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2400);}
 
   /* ---------- Icons row ---------- */
@@ -830,7 +851,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
         const del=document.createElement('button');del.className='del';del.type='button';del.textContent='Supprimer';
         del.addEventListener('click',async e=>{
           e.stopPropagation();
-          if(!confirm('Supprimer définitivement la fiche '+(f.numero?'N° '+f.numero+' ':'')+'de '+who+' ?'))return;
+          if(!(await ask('Supprimer définitivement la fiche '+(f.numero?'N° '+f.numero+' ':'')+'de '+who+' ?','Supprimer')))return;
           await deleteFiches([f.id]);
         });
         it.append(nm,del,meta,tags);
@@ -867,7 +888,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   $('selDelete').addEventListener('click',async()=>{
     if(!picked.size)return;
     const n=picked.size;
-    if(!confirm('Supprimer définitivement '+n+' fiche'+(n>1?'s':'')+' ? Cette action ne peut pas être annulée.'))return;
+    if(!(await ask('Supprimer définitivement '+n+' fiche'+(n>1?'s':'')+' ? Cette action ne peut pas être annulée.','Supprimer')))return;
     await deleteFiches([...picked]);selMode=false;picked.clear();renderList();
   });
   $('search').addEventListener('input',renderList);
@@ -880,8 +901,8 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   /* ---------- New client ---------- */
   $('newBtn').addEventListener('click',async()=>{
     if(hasContent()&&unsaved){
-      if(db){if(!(await saveCloud(true))&&!confirm('La fiche n\'a pas pu être enregistrée. Commencer quand même un nouveau client ?'))return;}
-      else if(!confirm('Effacer la fiche en cours pour un nouveau client ?'))return;
+      if(db){if(!(await saveCloud(true))&&!(await ask('La fiche n\'a pas pu être enregistrée. Commencer quand même un nouveau client ?','Continuer')))return;}
+      else if(!(await ask('Effacer la fiche en cours pour un nouveau client ?','Effacer')))return;
     }
     state=blankState();unsaved=false;
     Object.values(pads).forEach(p=>p.fit());
@@ -904,9 +925,9 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
     toast('Choisissez « Enregistrer au format PDF » comme imprimante');
     setTimeout(printSheet,600);
   });
-  $('printBtn').addEventListener('click',()=>{
+  $('printBtn').addEventListener('click',async()=>{
     const miss=missingItems();
-    if(miss.length&&!confirm('Il manque '+miss.join(' et ')+'. Imprimer quand même ?'))return;
+    if(miss.length&&!(await ask('Il manque '+miss.join(' et ')+'. Imprimer quand même ?','Imprimer',false)))return;
     printSheet();
   });
 
