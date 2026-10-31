@@ -225,6 +225,22 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
 .backup{border-top:1px solid var(--line);padding:12px 16px;font-size:13px;color:var(--muted)}
 .backup p{margin:0 0 8px;line-height:1.4}
 .backup .row2{display:flex;gap:8px;flex-wrap:wrap}
+.years{display:flex;gap:6px;flex-wrap:wrap;padding:10px 16px 0}
+.years button{border:1.5px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;font:800 13px "Nunito Sans",Arial,sans-serif;color:var(--navy);cursor:pointer}
+.years button[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.seltools{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.seltools .grp{display:flex;gap:8px;flex-wrap:wrap}
+.seltools .btn{padding:7px 11px;font-size:13px}
+.btn-danger{background:#c0392b;color:#fff}
+.yearhead{position:sticky;top:0;background:#f3f6fc;color:var(--navy);font:700 18px "Barlow Condensed","Bahnschrift Condensed","Arial Narrow",Arial,sans-serif;padding:6px 16px;border-bottom:1px solid var(--line);z-index:1}
+.item.selmode{grid-template-columns:28px 1fr}
+.item.selmode .nm,.item.selmode .meta,.item.selmode .tags{grid-column:2}
+.item .pick{grid-column:1}
+.item .pick{grid-row:1/4;align-self:center;width:22px;height:22px;accent-color:var(--orange)}
+.item.picked{background:var(--orange-soft)}
+.num{display:inline-block;font-weight:800;color:#fff;background:var(--orange);border-radius:5px;padding:1px 7px;margin-right:8px;font-size:12.5px}
+.fiche-num{text-align:right;font-weight:800;color:var(--navy);font-size:15px;margin-top:10px}
+.fiche-num span{color:#fff;background:var(--orange);border-radius:6px;padding:3px 10px;margin-left:6px}
 .empty{padding:30px 20px;text-align:center;color:var(--muted);line-height:1.5}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:8px;font-weight:700;opacity:0;transition:opacity .2s;pointer-events:none;z-index:40}
 .toast.show{opacity:1}
@@ -373,6 +389,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
           <p>Ensemble, valorisons votre projet et faisons<br>grandir notre <b>entreprise locale</b> !</p>
         </div>
       </header>
+      <div class="fiche-num" id="ficheNum" hidden>Programme ambassadeur <span></span></div>
 
       <section class="grid2">
         <div>
@@ -466,6 +483,15 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   <aside class="panel2" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
     <div class="head"><h2 id="drawerTitle">Mes fiches ambassadeur</h2><button type="button" id="drawerClose" aria-label="Fermer">×</button></div>
     <div class="search"><input id="search" type="search" placeholder="Rechercher un client, une ville, un mail…" aria-label="Rechercher"></div>
+    <div class="years" id="years"></div>
+    <div class="seltools">
+      <span id="selInfo" style="font-size:13px;color:var(--muted)"></span>
+      <div class="grp">
+        <button class="btn btn-light" type="button" id="selToggle">Sélectionner</button>
+        <button class="btn btn-light" type="button" id="selAll" hidden>Tout cocher</button>
+        <button class="btn btn-danger" type="button" id="selDelete" hidden disabled>Supprimer</button>
+      </div>
+    </div>
     <div class="list" id="list"></div>
     <div class="backup">
       <p>Vos fiches sont gardées sur cet ordinateur, dans ce navigateur. Faites une sauvegarde de temps en temps.</p>
@@ -515,7 +541,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
 
   /* ---------- State ---------- */
   const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
-  function blankState(){return {id:null,screen:'welcome',q:0,info:Object.fromEntries(INFO.map(k=>[k,''])),answers:[null,null,null,null,null],datePro:'',dateCli:'',sigPro:null,sigCli:null,createdAt:null,mailedAt:null,mailedTo:null};}
+  function blankState(){return {id:null,screen:'welcome',q:0,info:Object.fromEntries(INFO.map(k=>[k,''])),answers:[null,null,null,null,null],datePro:'',dateCli:'',sigPro:null,sigCli:null,createdAt:null,mailedAt:null,mailedTo:null,numero:null};}
   let state=blankState(), unsaved=false, db=null, fiches=[];
   const accepted=()=>state.answers.filter(a=>a==='yes').length;
   const remise=()=>remiseFor(accepted());
@@ -632,6 +658,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   // Sheet
   function renderSheet(){
     document.querySelectorAll('[data-show]').forEach(el=>{el.textContent=state.info[el.dataset.show]||'';});
+    renderNumero();
     const c=$('sheetConds');c.innerHTML='';
     QUESTIONS.forEach((q,i)=>{
       const row=document.createElement('div');row.className='cond-row';
@@ -662,7 +689,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   function markStatus(){
     const el=$('status');
     if(!hasContent()){el.textContent='';return;}
-    const who=clientName();
+    const who=(state.numero?'N° '+state.numero+' – ':'')+clientName();
     if(!db){el.textContent=who;return;}
     const f=state.id&&fiches.find(x=>x.id===state.id);
     if(!state.id||unsaved) el.textContent=who+' : enregistrement…';
@@ -670,7 +697,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   }
   function toDoc(extra){
     const n=accepted();
-    const d={version:2,info:Object.assign({},state.info),answers:state.answers.slice(),accepted:n,remise:remiseFor(n),
+    const d={version:2,numero:state.numero||null,annee:state.numero?Number(String(state.numero).slice(0,4)):null,info:Object.assign({},state.info),answers:state.answers.slice(),accepted:n,remise:remiseFor(n),
       nom:state.info.nom.trim(),prenom:state.info.prenom.trim(),mail:state.info.mail.trim(),
       adresse:[state.info.adresse.trim(),state.info.adresse2.trim()].filter(Boolean).join(', '),
       complete:state.answers.every(a=>a),
@@ -689,8 +716,35 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
       s.datePro=v.datePro||'';s.dateCli=v.dateCli||'';
     }
     if(f.version===2){s.datePro=f.datePro||'';s.dateCli=f.dateCli||'';}
-    s.sigPro=f.sigPro||null;s.sigCli=f.sigCli||null;s.id=f.id;s.createdAt=f.createdAt||null;s.mailedAt=f.mailedAt||null;s.mailedTo=f.mailedTo||null;
+    s.sigPro=f.sigPro||null;s.sigCli=f.sigCli||null;s.id=f.id;s.createdAt=f.createdAt||null;s.mailedAt=f.mailedAt||null;s.mailedTo=f.mailedTo||null;s.numero=f.numero||null;
     return s;
+  }
+  /* ---------- Numérotation par année ---------- */
+  const yearOf=f=>f.numero?Number(String(f.numero).slice(0,4)):new Date(f.createdAt||f.updatedAt||Date.now()).getFullYear();
+  const seqOf=n=>n?Number(String(n).split('-')[1])||0:0;
+  function nextNumero(year,taken){
+    let max=0;fiches.forEach(f=>{if(f.numero&&yearOf(f)===year)max=Math.max(max,seqOf(f.numero));});
+    (taken||[]).forEach(n=>{if(Number(String(n).slice(0,4))===year)max=Math.max(max,seqOf(n));});
+    return year+'-'+String(max+1).padStart(3,'0');
+  }
+  let numbering=false;
+  async function numberOldFiches(){
+    if(numbering||!db)return;
+    const todo=fiches.filter(f=>!f.numero).sort((a,b)=>(a.createdAt||a.updatedAt||0)-(b.createdAt||b.updatedAt||0));
+    if(!todo.length)return;
+    numbering=true;const taken=[];
+    try{
+      for(const f of todo){
+        const n=nextNumero(yearOf(f),taken);taken.push(n);
+        const d=Object.assign({},f);delete d.id;d.numero=n;d.annee=Number(n.slice(0,4));
+        await db.collection(COL).doc(f.id).set(d);
+        if(state.id===f.id){state.numero=n;renderNumero();saveLocal();}
+      }
+    }catch(e){}finally{numbering=false;}
+  }
+  function renderNumero(){
+    const el=$('ficheNum');if(!el)return;
+    el.hidden=!state.numero;el.querySelector('span').textContent='N° '+(state.numero||'');
   }
   let chain=Promise.resolve(), ct;
   function scheduleCloud(delay){clearTimeout(ct);ct=setTimeout(()=>saveCloud(true),delay==null?1500:delay);}
@@ -699,10 +753,11 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
     const run=chain.then(async()=>{
       if(!db)return false;
       if(!state.info.nom.trim()&&!state.info.prenom.trim()&&!state.info.mail.trim()){if(!quiet)toast('Indiquez au moins le nom du client pour enregistrer');return false;}
+      if(!state.numero)state.numero=nextNumero(new Date(state.createdAt||Date.now()).getFullYear());
       const data=toDoc(extra);
       const ref=state.id?db.collection(COL).doc(state.id):db.collection(COL).doc();
       await ref.set(data);
-      state.id=ref.id;state.createdAt=data.createdAt;
+      state.id=ref.id;state.createdAt=data.createdAt;renderNumero();
       if(extra&&extra.mailedAt){state.mailedAt=extra.mailedAt;state.mailedTo=extra.mailedTo;}
       unsaved=false;saveLocal();markStatus();
       if(!quiet)toast('Fiche enregistrée');
@@ -717,42 +772,104 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   $('saveBtn').addEventListener('click',()=>saveCloud(false));
 
   /* ---------- Saved list ---------- */
+  let yearFilter=null, selMode=false; const picked=new Set();
+  function renderYears(){
+    const years=[...new Set(fiches.map(yearOf))].sort((a,b)=>b-a);
+    if(yearFilter!=='all'&&!years.includes(yearFilter))yearFilter=years.length?years[0]:'all';
+    const box=$('years');box.textContent='';
+    if(years.length<1)return;
+    [...years,'all'].forEach(y=>{
+      const b=document.createElement('button');b.type='button';
+      const n=y==='all'?fiches.length:fiches.filter(f=>yearOf(f)===y).length;
+      b.textContent=(y==='all'?'Toutes':y)+' ('+n+')';b.setAttribute('aria-pressed',String(y===yearFilter));
+      b.addEventListener('click',()=>{yearFilter=y;renderList();});box.appendChild(b);
+    });
+  }
+  function updateSel(){
+    [...picked].forEach(id=>{if(!fiches.some(f=>f.id===id))picked.delete(id);});
+    $('selToggle').textContent=selMode?'Annuler':'Sélectionner';
+    $('selAll').hidden=!selMode;$('selDelete').hidden=!selMode;
+    $('selDelete').disabled=!picked.size;
+    $('selDelete').textContent='Supprimer'+(picked.size?' ('+picked.size+')':'');
+    $('selInfo').textContent=selMode?(picked.size?picked.size+' sélectionnée'+(picked.size>1?'s':''):'Cochez les fiches à supprimer'):'';
+  }
+  function visibleFiches(){
+    const q=$('search').value.trim().toLowerCase();
+    return fiches.filter(f=>(yearFilter==='all'||yearOf(f)===yearFilter)&&(!q||[f.numero,f.nom,f.prenom,f.mail,f.adresse].join(' ').toLowerCase().includes(q)))
+      .sort((a,b)=>yearOf(b)-yearOf(a)||seqOf(b.numero)-seqOf(a.numero)||(b.updatedAt||0)-(a.updatedAt||0));
+  }
   function renderList(){
     $('count').textContent=fiches.length?'('+fiches.length+')':'';
-    const q=$('search').value.trim().toLowerCase();
-    const shown=fiches.filter(f=>!q||[f.nom,f.prenom,f.mail,f.adresse].join(' ').toLowerCase().includes(q));
+    renderYears();
+    const shown=visibleFiches();
     const list=$('list');list.textContent='';
-    if(!shown.length){const d=document.createElement('div');d.className='empty';d.textContent=fiches.length?'Aucune fiche ne correspond à cette recherche.':'Aucune fiche pour le moment. Chaque client que vous saisissez apparaîtra ici automatiquement.';list.appendChild(d);return;}
+    if(!shown.length){const d=document.createElement('div');d.className='empty';d.textContent=fiches.length?'Aucune fiche ne correspond à cette recherche.':'Aucune fiche pour le moment. Chaque client que vous saisissez apparaîtra ici automatiquement.';list.appendChild(d);updateSel();return;}
+    let lastYear=null;
     shown.forEach(f=>{
-      const it=document.createElement('div');it.className='item'+(f.id===state.id?' current':'');it.tabIndex=0;
-      const nm=document.createElement('div');nm.className='nm';nm.textContent=[f.prenom,f.nom].filter(Boolean).join(' ')||f.mail||'Client sans nom';
+      const y=yearOf(f);
+      if(y!==lastYear){lastYear=y;const h=document.createElement('div');h.className='yearhead';h.textContent='Année '+y;list.appendChild(h);}
+      const it=document.createElement('div');it.className='item'+(f.id===state.id?' current':'')+(selMode?' selmode':'')+(picked.has(f.id)?' picked':'');it.tabIndex=0;
+      const nm=document.createElement('div');nm.className='nm';
+      const who=[f.prenom,f.nom].filter(Boolean).join(' ')||f.mail||'Client sans nom';
+      if(f.numero){const n=document.createElement('span');n.className='num';n.textContent='N° '+f.numero;nm.appendChild(n);}
+      nm.appendChild(document.createTextNode(who));
       const meta=document.createElement('div');meta.className='meta';meta.textContent=(f.adresse?f.adresse+' – ':'')+'modifiée le '+fmtDate(f.updatedAt);
       const tags=document.createElement('div');tags.className='tags';
-      const add=(t,c)=>{const s=document.createElement('span');s.className='tag '+(c||'');s.textContent=t;tags.appendChild(s);};
+      const add=(t,c)=>{const sp=document.createElement('span');sp.className='tag '+(c||'');sp.textContent=t;tags.appendChild(sp);};
       if(f.version===2&&!f.complete)add('Questions en cours');
       else{ if(f.remise)add('Remise '+f.remise+' %','or'); else if(f.version===2)add('Pas de remise'); if(f.version===2)add(f.accepted+'/5 conditions'); }
       add(f.signeClient&&f.signePro?'Signée':'À signer',f.signeClient&&f.signePro?'ok':'');
       if(f.mailedAt)add('Envoyée le '+new Date(f.mailedAt).toLocaleDateString('fr-FR'),'ok');
-      const del=document.createElement('button');del.className='del';del.type='button';del.textContent='Supprimer';
-      del.addEventListener('click',async e=>{
-        e.stopPropagation();
-        if(!confirm('Supprimer définitivement la fiche de '+nm.textContent+' ?'))return;
-        try{await db.collection(COL).doc(f.id).delete();if(f.id===state.id){state.id=null;unsaved=true;markStatus();}toast('Fiche supprimée');}
-        catch(err){toast('Suppression impossible, réessayez');}
-      });
-      it.append(nm,del,meta,tags);
-      it.addEventListener('click',async()=>{
-        if(f.id!==state.id&&unsaved&&hasContent())await saveCloud(true);
-        state=fromDoc(f);unsaved=false;closeDrawer();
-        const done=state.answers.every(a=>a);
-        if(!done){const i=state.answers.findIndex(a=>!a);state.q=i<0?0:i;}
-        show(done?'sheet':'question');
-        toast('Fiche de '+nm.textContent+' ouverte');
-      });
+      if(selMode){
+        const cb=document.createElement('input');cb.type='checkbox';cb.className='pick';cb.checked=picked.has(f.id);cb.setAttribute('aria-label','Sélectionner '+who);
+        cb.addEventListener('click',e=>e.stopPropagation());
+        cb.addEventListener('change',()=>{cb.checked?picked.add(f.id):picked.delete(f.id);it.classList.toggle('picked',cb.checked);updateSel();});
+        it.append(cb,nm,meta,tags);
+        it.addEventListener('click',()=>{cb.checked=!cb.checked;cb.dispatchEvent(new Event('change'));});
+      }else{
+        const del=document.createElement('button');del.className='del';del.type='button';del.textContent='Supprimer';
+        del.addEventListener('click',async e=>{
+          e.stopPropagation();
+          if(!confirm('Supprimer définitivement la fiche '+(f.numero?'N° '+f.numero+' ':'')+'de '+who+' ?'))return;
+          await deleteFiches([f.id]);
+        });
+        it.append(nm,del,meta,tags);
+        it.addEventListener('click',async()=>{
+          if(f.id!==state.id&&unsaved&&hasContent())await saveCloud(true);
+          state=fromDoc(f);unsaved=false;closeDrawer();
+          const done=state.answers.every(a=>a);
+          if(!done){const i=state.answers.findIndex(a=>!a);state.q=i<0?0:i;}
+          show(done?'sheet':'question');
+          toast('Fiche '+(f.numero?'N° '+f.numero+' ':'')+'de '+who+' ouverte');
+        });
+      }
       it.addEventListener('keydown',e=>{if(e.key==='Enter')it.click();});
       list.appendChild(it);
     });
+    updateSel();
   }
+  async function deleteFiches(ids){
+    let ok=0;
+    for(const id of ids){
+      try{await db.collection(COL).doc(id).delete();ok++;picked.delete(id);
+        if(id===state.id){state.id=null;state.numero=null;unsaved=true;renderNumero();markStatus();saveLocal();}}
+      catch(err){}
+    }
+    if(ok<ids.length)toast((ids.length-ok)+' fiche(s) n\'ont pas pu être supprimées, réessayez');
+    else toast(ok>1?ok+' fiches supprimées':'Fiche supprimée');
+    renderList();
+  }
+  $('selToggle').addEventListener('click',()=>{selMode=!selMode;picked.clear();renderList();});
+  $('selAll').addEventListener('click',()=>{
+    const ids=visibleFiches().map(f=>f.id);const all=ids.every(id=>picked.has(id));
+    ids.forEach(id=>all?picked.delete(id):picked.add(id));renderList();
+  });
+  $('selDelete').addEventListener('click',async()=>{
+    if(!picked.size)return;
+    const n=picked.size;
+    if(!confirm('Supprimer définitivement '+n+' fiche'+(n>1?'s':'')+' ? Cette action ne peut pas être annulée.'))return;
+    await deleteFiches([...picked]);selMode=false;picked.clear();renderList();
+  });
   $('search').addEventListener('input',renderList);
   function openDrawer(){renderList();$('drawer').classList.add('open');$('drawer').setAttribute('aria-hidden','false');$('search').focus();}
   function closeDrawer(){$('drawer').classList.remove('open');$('drawer').setAttribute('aria-hidden','true');}
@@ -774,7 +891,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   /* ---------- PDF (via l'impression du navigateur, sans Internet) ---------- */
   function fileName(){
     const n=(state.info.nom.trim()||'client').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'');
-    return 'Programme-Ambassadeur-'+(n||'client');
+    return 'Programme-Ambassadeur-'+(state.numero?state.numero+'-':'')+(n||'client');
   }
   function missingItems(){const m=[];if(!state.sigCli)m.push('la signature du client');if(!state.sigPro)m.push('votre signature');return m;}
   function printSheet(){
@@ -799,7 +916,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   $('mailBtn').addEventListener('click',()=>{
     const n=clientName(),r=remise(),a=accepted();
     $('mTo').value=state.info.mail.trim();
-    $('mSubject').value='Votre fiche Programme Ambassadeur – L\'Univers de la Rénovation';
+    $('mSubject').value='Votre fiche Programme Ambassadeur'+(state.numero?' N° '+state.numero:'')+' – L\'Univers de la Rénovation';
     $('mBody').value='Bonjour'+(n?' '+n:'')+',\n\nVous trouverez ci-joint votre fiche Programme Ambassadeur signée. Vous avez accepté '+a+' condition'+(a>1?'s':'')+' sur 5'+(r?', ce qui vous donne droit à une remise de '+r+' % sur le montant total du devis':'')+'.\n\nMerci pour votre confiance !\n\nL\'Univers de la Rénovation\nL\'artisan de votre région';
     const miss=missingItems();
     showMsg('info',(miss.length?'Attention : il manque '+miss.join(' et ')+'.<br><br>':'')+'1. Cliquez d\'abord sur « Enregistrer en PDF » pour créer le fichier <b>'+fileName()+'.pdf</b>.<br>2. Puis « Ouvrir ma messagerie » : le mail se prépare, il ne reste qu\'à joindre le PDF. Il partira dès que vous aurez Internet.');
@@ -868,7 +985,7 @@ body.capturing .clear,body.capturing .pad-hint{display:none!important}
   $('listBtn').hidden=false;$('saveBtn').hidden=false;
   db.collection(COL).onSnapshot(snap=>{
     fiches=snap.docs.map(d=>Object.assign({id:d.id},d.data()||{}));
-    renderList();markStatus();
+    renderList();markStatus();numberOldFiches();
   });
   show(hasContent()?state.screen:'welcome');
 })();
