@@ -1,0 +1,16 @@
+{
+  "name": "Mon carnet – Devis & Factures",
+  "short_name": "Mon carnet",
+  "description": "Devis, factures et fiches clients, utilisable sans Internet.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EEF3F9",
+  "theme_color": "#1B3A6B",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
