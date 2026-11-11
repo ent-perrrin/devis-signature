@@ -1,6 +1,6 @@
 /* Mon carnet – fonctionnement hors ligne.
    Change VERSION à chaque mise à jour pour que les téléphones récupèrent la nouvelle version. */
-const VERSION = 'carnet-v1';
+const VERSION = 'carnet-v2';
 const LOCAL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 const REMOTE = [
   'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',

@@ -240,6 +240,8 @@ body:not([data-main="devis"]) #devisListView, body:not([data-main="devis"]) #bac
 body:not([data-dmode="list"]) #devisListView{display:none!important}
 body[data-main="devis"][data-dmode="list"] #devisView, body[data-main="devis"][data-dmode="list"] .actionbar, body[data-main="devis"][data-dmode="list"] .tabs, body[data-dmode="list"] #backBar, body[data-main="devis"][data-dmode="list"] #btnList{display:none!important}
 #backBar{max-width:1200px;margin:10px auto 0;padding:0 16px}
+#btnBackup.warn{position:relative}
+#btnBackup.warn::after{content:"";position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;background:var(--orange);border:2px solid var(--navy)}
 body.offline header.top::after{content:"Hors ligne · tout est enregistré sur ce téléphone";position:absolute;left:0;right:0;top:100%;background:#C25E00;color:#fff;font-size:12.5px;font-weight:600;text-align:center;padding:3px 8px;z-index:5}
 body.offline .mainnav{padding-top:32px}
 .aibox{border:1.5px solid var(--orange);background:var(--orange-soft);border-radius:12px;padding:12px;display:grid;gap:8px;margin-bottom:10px}
@@ -639,14 +641,16 @@ table.ytab td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--lin
     <label>Objet<input id="sSubject"></label>
     <label>Message<textarea id="sBody" rows="8"></textarea></label>
     <div class="gm" id="gmBox">
-      <button class="btn orange" id="sShareOff" style="width:100%;padding:14px;font-size:16px">📤 Envoyer avec le PDF (Mail, WhatsApp…)</button>
-      <button class="btn navy" id="sWa" style="width:100%;padding:14px;font-size:16px">💬 Message WhatsApp avec le lien de signature</button>
-      <a class="btn" id="sMailOff" href="#" target="_blank" rel="noopener" style="width:100%;padding:12px">📧 Ouvrir mon e-mail (joindre le PDF moi-même)</a>
-      <button class="btn" id="sPdfOff" style="width:100%">⬇️ Enregistrer le PDF</button>
-      <p class="hint" style="margin:0">L'envoi a besoin d'Internet. Hors ligne, prépare ton devis : tu l'enverras dès que tu captes.</p>
+      <button class="btn orange" id="sDirect" style="width:100%;padding:14px;font-size:16px">📧 Envoyer au client maintenant (PDF joint)</button>
+      <div id="keyRow" hidden><label>🔑 Code de liaison avec ton Gmail (à entrer une seule fois)<input id="relayKeyIn" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false"></label></div>
+      <button class="btn" id="sShareOff" style="width:100%;padding:12px">📤 Ouvrir dans ma messagerie avec le PDF</button>
+      <button class="btn ghost" id="sPdfOff" style="width:100%">⬇️ Enregistrer le PDF</button>
+      <p class="hint" style="margin:0">Le mail part depuis ton Gmail. Sans réseau, il partira tout seul dès que tu captes.</p>
       <div class="gmstat" id="gmStat"></div>
     </div>
     <div hidden>
+      <button class="btn" id="sWa">x</button>
+      <a id="sMailOff" href="#">x</a>
       <button class="btn orange" id="sGmailSend">x</button>
       <button class="btn ghost" id="sGmail">x</button>
       <button class="btn" id="sShare" hidden>📤 Ouvrir dans mon appli Mail avec le PDF</button>
@@ -685,8 +689,14 @@ table.ytab td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--lin
 <div class="modal" id="bkDlg" role="dialog" aria-modal="true" aria-labelledby="bkTitle">
   <div class="box">
     <div class="dhead"><h3 id="bkTitle">💾 Sauvegarde</h3><button class="btn ghost" data-close>Fermer</button></div>
-    <p style="margin:0">Tes devis, factures et clients sont enregistrés <b>uniquement sur ce téléphone</b>. Fais une sauvegarde régulièrement et garde le fichier sur ton Drive, dans tes mails ou sur ton ordinateur.</p>
-    <p class="hint" style="margin:0">Dernière sauvegarde : <b id="bkLast">jamais</b></p>
+    <p style="margin:0">Tes devis, factures et clients sont enregistrés sur ce téléphone. Avec ton code de liaison, ils sont aussi <b>sauvegardés automatiquement sur ton Google Drive</b> (dossier « Sauvegardes Mon carnet ») après chaque modification.</p>
+    <div style="border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:8px;background:var(--soft)">
+      <b>☁️ Sauvegarde automatique sur ton Google Drive</b>
+      <p class="hint" id="bkAuto" style="margin:0"></p>
+      <label>🔑 Code de liaison<input id="relayKeyIn2" placeholder="XXXX-XXXX-XXXX-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false"></label>
+      <button class="btn" id="bkTest">Tester la liaison</button>
+    </div>
+    <p class="hint" style="margin:0">Sauvegarde manuelle (fichier) : dernière le <b id="bkLast">jamais</b></p>
     <button class="btn orange" id="bkSave" style="padding:13px">💾 Faire une sauvegarde maintenant</button>
     <label class="btn" style="padding:12px;text-align:center;cursor:pointer">📂 Restaurer une sauvegarde<input type="file" id="bkFile" accept=".json,application/json" hidden></label>
     <p class="hint" id="bkStat" style="margin:0;font-weight:600"></p>
@@ -2045,7 +2055,7 @@ $('#bkFile').onchange=async e=>{
   try{ localStorage.setItem(KEY,JSON.stringify(d.state)); localStorage.setItem(LS_CONTACTS,JSON.stringify(d.contacts||[])); }catch(_){ toast('La restauration a échoué'); return; }
   location.reload();
 };
-setTimeout(()=>{ let t=0; try{ t=+localStorage.getItem(BK_KEY)||0; }catch(e){} if(state.quotes.filter(q=>!isBlank(q)).length>=3&&Date.now()-t>14*864e5) toast('Pense à faire une sauvegarde : touche 💾 en haut'); },4000);
+setTimeout(()=>{ let t=0; try{ t=+localStorage.getItem(BK_KEY)||0; }catch(e){} if(!relayKey()&&state.quotes.filter(q=>!isBlank(q)).length>=3&&Date.now()-t>14*864e5) toast('Active la sauvegarde automatique : touche 💾 en haut'); },4000);
 
 /* Bandeau hors ligne */
 function netBadge(){ document.body.classList.toggle('offline',!navigator.onLine); }
@@ -2053,6 +2063,141 @@ window.addEventListener('online',netBadge); window.addEventListener('offline',ne
 
 /* Installation hors ligne (service worker) */
 if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW',e));
+
+
+/* ================= RELAIS GOOGLE : envoi direct par mail + sauvegarde automatique ================= */
+const RELAIS='https://script.google.com/macros/s/AKfycbxX8eS3m1jFQb9yDGkmx4AVZgd303KI3QjTannjPBHe7wRjDpjJmvpb0zECdUV4XqDT-A/exec';
+const OUTBOX='carnet-outbox', BK_PENDING='carnet-bk-pending', BK_AUTO='carnet-bk-auto';
+const EMAIL_RE=/^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+function relayKey(){ return String(state.company.relayKey||'').trim().toUpperCase(); }
+function lsGet(k,d){ try{ const v=localStorage.getItem(k); return v===null?d:v; }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+async function relay(payload){
+  const r=await fetch(RELAIS,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),redirect:'follow'});
+  let j=null; try{ j=await r.json(); }catch(e){}
+  if(!j) throw {code:'reponse'};
+  if(!j.ok) throw {code:j.erreur||'erreur'};
+  return j;
+}
+function relayErr(e){
+  const c=e&&e.code;
+  return c==='code'?'Le code de liaison est incorrect : vérifie-le (bouton 💾).'
+    :c==='adresse'?'L\'adresse e-mail du client n\'est pas valide.'
+    :'Le relais Google n\'a pas répondu. Réessaie dans un moment.';
+}
+function setRelayKey(v){
+  state.company.relayKey=String(v||'').trim().toUpperCase(); save();
+  ['#relayKeyIn','#relayKeyIn2'].forEach(s=>{ const el=$(s); if(el&&el.value!==state.company.relayKey) el.value=state.company.relayKey; });
+  bkError=null; runAutoBackup(true); processOutbox();
+}
+['#relayKeyIn','#relayKeyIn2'].forEach(s=>$(s).addEventListener('change',e=>setRelayKey(e.target.value)));
+
+/* --- Sauvegarde automatique sur Google Drive (après chaque devis / fiche client modifié) --- */
+let bkTimer=null, bkRunning=false, bkError=null, bkSeq=0;
+function backupData(){ return {app:'mon-carnet-devis',version:1,date:new Date().toISOString(),state:JSON.parse(lsGet(KEY,'{}')),contacts:JSON.parse(lsGet(LS_CONTACTS,'[]'))}; }
+function scheduleAutoBackup(){ bkSeq++; lsSet(BK_PENDING,'1'); if(!bkTimer) bkTimer=setTimeout(()=>{ bkTimer=null; runAutoBackup(); },10000); updateBkStatus(); }
+async function runAutoBackup(force){
+  if(lsGet(BK_PENDING,'0')!=='1'&&!force){ updateBkStatus(); return; }
+  if(bkRunning||!navigator.onLine||!relayKey()){ updateBkStatus(); return; }
+  bkRunning=true; updateBkStatus();
+  const seq=bkSeq;
+  try{
+    await relay({action:'sauvegarde',cle:relayKey(),donnees:backupData()});
+    lsSet(BK_AUTO,String(Date.now())); bkError=null;
+    if(bkSeq===seq) lsSet(BK_PENDING,'0');
+    else if(!bkTimer) bkTimer=setTimeout(()=>{ bkTimer=null; runAutoBackup(); },10000);
+  }catch(e){
+    console.warn('Sauvegarde auto',e); bkError=(e&&e.code)||'reseau';
+    if(bkError!=='code'&&!bkTimer) bkTimer=setTimeout(()=>{ bkTimer=null; runAutoBackup(); },60000);
+  }
+  bkRunning=false; updateBkStatus();
+}
+function fmtStamp(t){ const d=new Date(+t); return d.toLocaleDateString('fr-FR')+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}); }
+function updateBkStatus(){
+  const el=$('#bkAuto'), pend=lsGet(BK_PENDING,'0')==='1', last=+lsGet(BK_AUTO,'0');
+  let txt, col='var(--muted)', warn=false;
+  if(!relayKey()){ txt='Pas encore active : entre ton code de liaison ci-dessous.'; col='#C25E00'; warn=true; }
+  else if(bkError==='code'){ txt='Code de liaison incorrect : la sauvegarde automatique ne peut pas se faire.'; col='#B3261E'; warn=true; }
+  else if(bkRunning){ txt='Sauvegarde en cours…'; }
+  else if(pend&&!navigator.onLine){ txt='Modifications en attente : la sauvegarde se fera dès que tu captes.'+(last?' Dernière : '+fmtStamp(last)+'.':''); col='#C25E00'; }
+  else if(pend&&bkError){ txt='La dernière sauvegarde n\'a pas pu se faire, nouvel essai bientôt.'+(last?' Dernière réussie : '+fmtStamp(last)+'.':''); col='#C25E00'; }
+  else if(pend){ txt='Modifications en attente, sauvegarde dans quelques secondes…'; }
+  else txt=last?'✓ À jour. Dernière sauvegarde sur ton Google Drive : '+fmtStamp(last)+'.':'Aucune sauvegarde pour l\'instant.';
+  if(el){ el.textContent=txt; el.style.color=col; }
+  const b=$('#btnBackup'); if(b){ b.classList.toggle('warn',warn); b.title=warn?'Sauvegarde automatique à activer':'Sauvegarde'; }
+}
+const _saveLocal0=saveLocal; saveLocal=function(){ _saveLocal0(); scheduleAutoBackup(); };
+const _saveContactsLocal0=saveContactsLocal; saveContactsLocal=function(){ _saveContactsLocal0(); scheduleAutoBackup(); };
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&lsGet(BK_PENDING,'0')==='1'){ clearTimeout(bkTimer); bkTimer=null; runAutoBackup(); } });
+$('#bkTest').onclick=async()=>{
+  const st=$('#bkStat');
+  if(!relayKey()){ st.style.color='#B3261E'; st.textContent='Entre d\'abord ton code de liaison.'; return; }
+  if(!navigator.onLine){ st.style.color='#B3261E'; st.textContent='Pas de réseau pour tester.'; return; }
+  st.style.color='var(--muted)'; st.textContent='Test en cours…';
+  try{ await relay({action:'test',cle:relayKey()}); st.style.color='#1D8A45'; st.textContent='✓ Liaison avec ton Gmail et ton Drive OK.'; lsSet(BK_PENDING,'1'); runAutoBackup(true); }
+  catch(e){ st.style.color='#B3261E'; st.textContent=relayErr(e); }
+};
+const _bkOpen=$('#btnBackup').onclick; $('#btnBackup').onclick=()=>{ _bkOpen(); $('#relayKeyIn2').value=relayKey(); updateBkStatus(); };
+
+/* --- Envoi direct du devis au client depuis ton Gmail --- */
+function outbox(){ try{ return JSON.parse(lsGet(OUTBOX,'[]')); }catch(e){ return []; } }
+function setOutbox(a){ localStorage.setItem(OUTBOX,JSON.stringify(a)); }
+function markSentById(id,to){
+  const q=state.quotes.find(x=>x.id===id); if(!q) return;
+  if(!isInv(q)&&q.status==='Brouillon') q.status='Envoyé';
+  q.sentAt=Date.now(); if(to) q.sentTo=to; q.updated=Date.now(); save();
+  if(cur().id===id){ bindFields(); renderBanner(); }
+}
+let outboxRunning=false;
+async function processOutbox(){
+  if(outboxRunning||!navigator.onLine||!relayKey()) return;
+  let box=outbox(); if(!box.length) return;
+  outboxRunning=true;
+  for(const m of box){
+    try{
+      await relay({action:'envoi',cle:relayKey(),...m.payload});
+      setOutbox(outbox().filter(x=>x.t!==m.t)); markSentById(m.qid,m.payload.to);
+      toast(`📧 ${m.label} envoyé à ${m.payload.to}`);
+    }catch(e){ if(e&&(e.code==='code'||e.code==='adresse')) toast(`${m.label} : ${relayErr(e)}`); break; }
+  }
+  outboxRunning=false;
+}
+function queueSend(q,payload){
+  const b=outbox(); b.push({qid:q.id,t:Date.now(),label:(isInv(q)?'Facture ':'Devis ')+q.number,payload});
+  try{ setOutbox(b); return true; }catch(e){ return false; }
+}
+$('#sDirect').onclick=async()=>{
+  const st=$('#gmStat'), to=$('#sTo').value.trim(), q=cur();
+  const say=(t,ok)=>{ st.style.color=ok?'#1D8A45':'#B3261E'; st.textContent=t; };
+  if(!EMAIL_RE.test(to)){ say('Indique une adresse e-mail valide pour le client.'); $('#sTo').focus(); return; }
+  if(!relayKey()){ $('#keyRow').hidden=false; $('#relayKeyIn').focus(); say('Entre d\'abord ton code de liaison (une seule fois).'); return; }
+  if(!(await askConfirm('Envoyer maintenant ?',`${isInv(q)?'La facture':'Le devis'} part à ${to} depuis ton Gmail, avec le PDF joint.`))) return;
+  const btn=$('#sDirect'), old=btn.textContent; btn.disabled=true; btn.textContent='Préparation du PDF…';
+  let payload=null;
+  try{
+    if(!window.html2canvas||!window.jspdf) throw {code:'lib'};
+    const blob=await makePdfBlob();
+    payload={to,sujet:$('#sSubject').value.trim(),message:$('#sBody').value,pdf:await blobToB64(blob),fichier:pdfName(),nom:state.company.name||''};
+    if(!navigator.onLine){
+      say(queueSend(q,payload)?'📶 Pas de réseau : le mail partira tout seul dès que tu captes.':'Mémoire pleine : impossible de mettre le mail en attente.',true);
+    }else{
+      btn.textContent='Envoi…';
+      await relay({action:'envoi',cle:relayKey(),...payload});
+      markSentById(q.id,to); say(`✓ Envoyé à ${to} depuis ton Gmail, avec le PDF.`,true); toast('Mail envoyé');
+    }
+  }catch(e){
+    console.error(e);
+    if(e instanceof TypeError&&payload){ say(queueSend(q,payload)?'📶 Réseau trop faible : le mail partira tout seul dès que la connexion revient.':relayErr(e),true); }
+    else{ say(e&&e.code==='lib'?'Le PDF a besoin d\'une connexion au premier lancement de l\'appli.':relayErr(e)); if(e&&e.code==='code') $('#keyRow').hidden=false; }
+  }
+  btn.disabled=false; btn.textContent=old;
+};
+const _sendOpen=$('#btnSend').onclick; $('#btnSend').onclick=(...a)=>{ _sendOpen(...a); $('#keyRow').hidden=!!relayKey(); $('#relayKeyIn').value=relayKey(); $('#gmStat').textContent=''; };
+
+window.addEventListener('online',()=>{ setTimeout(()=>{ processOutbox(); runAutoBackup(); },1500); updateBkStatus(); });
+window.addEventListener('offline',updateBkStatus);
+setTimeout(()=>{ processOutbox(); runAutoBackup(); },3000);
+updateBkStatus();
 
 </script>
 </body>
