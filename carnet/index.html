@@ -432,8 +432,9 @@ table.ytab td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--lin
 <section class="sview" id="devisListView">
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
     <h2 style="margin:0;font-size:20px">Mes devis <span id="dCount" style="color:var(--muted);font-weight:500;font-size:15px"></span></h2>
-    <button class="btn orange" id="dNew">+ Nouveau devis</button>
+    <button class="btn" id="dNew">+ Nouveau devis</button>
   </div>
+  <button class="btn orange" id="dNewAI" style="width:100%;padding:14px;font-size:16px">💬 Nouveau devis avec l'IA : je lui parle, elle rédige</button>
   <div class="seg" id="dSeg"><button data-f="all">Tous</button><button data-f="wait">En attente</button><button data-f="acc">Acceptés</button><button data-f="ref">Refusés</button><button data-f="draft">Brouillons</button></div>
   <input id="dSearch" placeholder="Rechercher un client, un numéro, des travaux…">
   <div id="dList" style="display:grid;gap:8px"></div>
@@ -1043,6 +1044,14 @@ $('#dSearch').oninput=renderDevisList;
 $$('#dSeg button').forEach(b=>b.onclick=()=>{ dFilter=b.dataset.f; renderDevisList(); });
 $('#dNew').onclick=()=>{ newQuote(); openDevis(); toast('Nouveau devis créé'); };
 $('#btnBack').onclick=openDevisList;
+$('#dNewAI').onclick=()=>{
+  newQuote(); openDevis();
+  setTimeout(()=>{
+    const p=$('#aiPanel'); p.hidden=false; aiReset();
+    $('#aiBox').scrollIntoView({behavior:'smooth',block:'start'});
+    setTimeout(()=>$('#aiText').focus(),400);
+  },150);
+};
 $('#dList').addEventListener('click',e=>{
   const card=e.target.closest('.qitem'); if(!card) return;
   const q=state.quotes.find(x=>x.id===card.dataset.id); if(!q) return;
@@ -1132,7 +1141,7 @@ $$('.tabs button').forEach(b=>b.onclick=()=>{document.body.dataset.view=b.datase
 /* ---------- PDF ---------- */
 let dl=null, sampleFn=null;
 (async()=>{try{dl=await window.claude?.use?.('downloads');}catch(e){}})();
-(async()=>{try{sampleFn=await window.claude?.use?.('sample');}catch(e){} if(!sampleFn){ $('#btnSpell').style.display='none'; $('#aiBox').style.display='none'; }})();
+(async()=>{try{sampleFn=await window.claude?.use?.('sample');}catch(e){} if(!sampleFn){ $('#btnSpell').style.display='none'; $('#aiBox').style.display='none'; $('#dNewAI').style.display='none'; }})();
 
 async function makePdfBlob(o){
   o=o||{}; const SC=o.scale||2, QU=o.quality||0.82;
@@ -2235,7 +2244,7 @@ function makeRelaySample(){
 function enableRelayAI(){
   if(!relayKey()) return;
   sampleFn=makeRelaySample();
-  $('#btnSpell').style.display=''; $('#aiBox').style.display='';
+  $('#btnSpell').style.display=''; $('#aiBox').style.display=''; $('#dNewAI').style.display='';
 }
 const _setRelayKey0=setRelayKey; setRelayKey=function(v){ _setRelayKey0(v); enableRelayAI(); };
 setTimeout(enableRelayAI,50);
