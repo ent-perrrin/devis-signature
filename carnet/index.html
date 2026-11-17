@@ -241,8 +241,10 @@ body:not([data-dmode="list"]) #devisListView{display:none!important}
 body[data-main="devis"][data-dmode="list"] #devisView, body[data-main="devis"][data-dmode="list"] .actionbar, body[data-main="devis"][data-dmode="list"] .tabs, body[data-dmode="list"] #backBar, body[data-main="devis"][data-dmode="list"] #btnList{display:none!important}
 #backBar{max-width:1200px;margin:10px auto 0;padding:0 16px}
 #btnBackup.warn{position:relative}
+body.offline #btnBackup{background:var(--orange);border-color:var(--orange);color:#fff;animation:bkPulse 2s ease-in-out 3}
+@keyframes bkPulse{50%{transform:scale(1.12)}}
 #btnBackup.warn::after{content:"";position:absolute;top:3px;right:3px;width:9px;height:9px;border-radius:50%;background:var(--orange);border:2px solid var(--navy)}
-body.offline header.top::after{content:"Hors ligne · tout est enregistré sur ce téléphone";position:absolute;left:0;right:0;top:100%;background:#C25E00;color:#fff;font-size:12.5px;font-weight:600;text-align:center;padding:3px 8px;z-index:5}
+body.offline header.top::after{content:"Hors ligne · pense à sauvegarder avec 💾";position:absolute;left:0;right:0;top:100%;background:#C25E00;color:#fff;font-size:12.5px;font-weight:600;text-align:center;padding:3px 8px;z-index:5}
 body.offline .mainnav{padding-top:32px}
 .aibox{border:1.5px solid var(--orange);background:var(--orange-soft);border-radius:12px;padding:12px;display:grid;gap:8px;margin-bottom:10px}
 .aibox textarea{min-height:110px}
@@ -689,7 +691,7 @@ table.ytab td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--lin
 <div class="modal" id="bkDlg" role="dialog" aria-modal="true" aria-labelledby="bkTitle">
   <div class="box">
     <div class="dhead"><h3 id="bkTitle">💾 Sauvegarde</h3><button class="btn ghost" data-close>Fermer</button></div>
-    <p style="margin:0">Tes devis, factures et clients sont enregistrés sur ce téléphone. Avec ton code de liaison, ils sont aussi <b>sauvegardés automatiquement sur ton Google Drive</b> (dossier « Sauvegardes Mon carnet ») après chaque modification.</p>
+    <p style="margin:0">Tes devis, factures et clients sont enregistrés sur ce téléphone. <b>Avec du réseau</b>, ils sont sauvegardés automatiquement sur ton Google Drive (dossier « Sauvegardes Mon carnet ») après chaque modification. <b>Sans réseau</b>, fais toi-même une sauvegarde avec le bouton orange ci-dessous.</p>
     <div style="border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;gap:8px;background:var(--soft)">
       <b>☁️ Sauvegarde automatique sur ton Google Drive</b>
       <p class="hint" id="bkAuto" style="margin:0"></p>
@@ -2095,7 +2097,12 @@ function setRelayKey(v){
 /* --- Sauvegarde automatique sur Google Drive (après chaque devis / fiche client modifié) --- */
 let bkTimer=null, bkRunning=false, bkError=null, bkSeq=0;
 function backupData(){ return {app:'mon-carnet-devis',version:1,date:new Date().toISOString(),state:JSON.parse(lsGet(KEY,'{}')),contacts:JSON.parse(lsGet(LS_CONTACTS,'[]'))}; }
-function scheduleAutoBackup(){ bkSeq++; lsSet(BK_PENDING,'1'); if(!bkTimer) bkTimer=setTimeout(()=>{ bkTimer=null; runAutoBackup(); },10000); updateBkStatus(); }
+let offNudged=false;
+function offlineNudge(){
+  if(offNudged) return; offNudged=true;
+  toast('📶 Hors ligne : tes modifications sont sur ce téléphone. Touche 💾 pour faire une sauvegarde.');
+}
+function scheduleAutoBackup(){ if(!navigator.onLine) offlineNudge(); bkSeq++; lsSet(BK_PENDING,'1'); if(!bkTimer) bkTimer=setTimeout(()=>{ bkTimer=null; runAutoBackup(); },10000); updateBkStatus(); }
 async function runAutoBackup(force){
   if(lsGet(BK_PENDING,'0')!=='1'&&!force){ updateBkStatus(); return; }
   if(bkRunning||!navigator.onLine||!relayKey()){ updateBkStatus(); return; }
@@ -2194,7 +2201,11 @@ $('#sDirect').onclick=async()=>{
 };
 const _sendOpen=$('#btnSend').onclick; $('#btnSend').onclick=(...a)=>{ _sendOpen(...a); $('#keyRow').hidden=!!relayKey(); $('#relayKeyIn').value=relayKey(); $('#gmStat').textContent=''; };
 
-window.addEventListener('online',()=>{ setTimeout(()=>{ processOutbox(); runAutoBackup(); },1500); updateBkStatus(); });
+window.addEventListener('online',()=>{
+  offNudged=false;
+  if(lsGet(BK_PENDING,'0')==='1'&&relayKey()) toast('📶 Réseau retrouvé : sauvegarde automatique en cours…');
+  setTimeout(()=>{ processOutbox(); runAutoBackup(); },1500); updateBkStatus();
+});
 window.addEventListener('offline',updateBkStatus);
 setTimeout(()=>{ processOutbox(); runAutoBackup(); },3000);
 updateBkStatus();
