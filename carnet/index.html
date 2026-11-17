@@ -1456,7 +1456,7 @@ function aiApply(q,r){
 $('#aiGo').onclick=async()=>{
   const msg=$('#aiText').value.trim(), btn=$('#aiGo');
   if(msg.length<2){ $('#aiText').focus(); return; }
-  if(!sampleFn){ aiAdd('ai',"L'IA n'est pas disponible ici. Rouvre l'appli depuis claude.ai et accepte l'autorisation."); return; }
+  if(!sampleFn){ aiAdd('ai',"L'IA n'est pas encore activée : entre ton code de liaison (bouton 💾)."); return; }
   const q=cur(); if(aiConv.qid!==q.id) aiReset();
   stopMic(); try{speechSynthesis.cancel();}catch(e){}
   aiAdd('me',msg); $('#aiText').value='';
@@ -1470,7 +1470,7 @@ $('#aiGo').onclick=async()=>{
     if(n) toast('Devis mis à jour par l\'IA');
   }catch(e){
     console.error(e); wait.remove();
-    aiAdd('ai',e&&e.code==='rate_limited'?'Trop de demandes, réessaie dans un moment.':e&&e.code==='not_granted'?"Autorise l'appli à utiliser Claude, puis réessaie.":"Je n'ai pas réussi à répondre. Réessaie en reformulant.",'err');
+    aiAdd('ai',iaErr(e),'err');
   }
   btn.disabled=false;
 };
@@ -1496,7 +1496,7 @@ $('#btnSpell').onclick=async()=>{
     }
     q.updated=Date.now(); save(); refresh();
     toast(n?`${n} texte${n>1?'s':''} corrigé${n>1?'s':''}`:'Aucune faute trouvée');
-  }catch(e){toast(e&&e.code==='rate_limited'?'Trop de demandes, réessaie dans un moment':'La correction n\'a pas fonctionné, réessaie');}
+  }catch(e){toast(iaErr(e));}
   btn.disabled=false; btn.textContent="✍️ Orthographe";
 };
 
@@ -1791,7 +1791,7 @@ function attachAddr(el,mode){
   });
   el.addEventListener('input',()=>{
     clearTimeout(timer); const v=el.value.trim();
-    if(!sampleFn||v.length<6||v===picked){show(''); return;}
+    if(!sampleFn||sampleFn.noAddr||v.length<6||v===picked){show(''); return;}
     timer=setTimeout(()=>lookup(v),900);
   });
   el.addEventListener('blur',()=>setTimeout(()=>show(''),250));
@@ -2198,6 +2198,36 @@ window.addEventListener('online',()=>{ setTimeout(()=>{ processOutbox(); runAuto
 window.addEventListener('offline',updateBkStatus);
 setTimeout(()=>{ processOutbox(); runAutoBackup(); },3000);
 updateBkStatus();
+
+
+/* ================= IA (Gemini) via le relais Google ================= */
+function iaErr(e){
+  const c=e&&e.code;
+  return c==='quota'?'L\'IA gratuite a atteint sa limite, réessaie dans une minute.'
+    :c==='cle_ia'?'L\'IA n\'est pas encore activée : colle ta clé Gemini dans ton script Google.'
+    :c==='cle_ia_invalide'?'Ta clé Gemini n\'est pas valide : vérifie-la dans ton script Google.'
+    :c==='code'?'Le code de liaison est incorrect (bouton 💾).'
+    :e instanceof TypeError||!navigator.onLine?'Pas de réseau : l\'IA a besoin d\'Internet.'
+    :'Je n\'ai pas réussi à répondre. Réessaie en reformulant.';
+}
+function promptOf(input){ return typeof input==='string'?input:(input||[]).map(t=>t.content).join('\n\n'); }
+function parseJsonText(t){
+  t=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```\s*$/,'');
+  try{ return JSON.parse(t); }catch(_){ const m=t.match(/\{[\s\S]*\}/); if(m) return JSON.parse(m[0]); throw {code:'json'}; }
+}
+function makeRelaySample(){
+  const f=async input=>{ const j=await relay({action:'ia',cle:relayKey(),prompt:promptOf(input),json:false}); return {text:j.texte||'',truncated:false}; };
+  f.json=async input=>parseJsonText((await relay({action:'ia',cle:relayKey(),prompt:promptOf(input),json:true})).texte);
+  f.noAddr=true;
+  return f;
+}
+function enableRelayAI(){
+  if(!relayKey()) return;
+  sampleFn=makeRelaySample();
+  $('#btnSpell').style.display=''; $('#aiBox').style.display='';
+}
+const _setRelayKey0=setRelayKey; setRelayKey=function(v){ _setRelayKey0(v); enableRelayAI(); };
+setTimeout(enableRelayAI,50);
 
 </script>
 </body>
